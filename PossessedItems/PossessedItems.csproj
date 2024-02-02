@@ -44,7 +44,7 @@
 
     <Target Name="CopyToPack" DependsOnTargets="NetcodePatch" AfterTargets="PostBuildEvent">
         <PropertyGroup>
-            <PackFolder>$(SolutionDir)PossessedMasks/pack</PackFolder>
+            <PackFolder>$(SolutionDir)PossessedItems/pack</PackFolder>
         </PropertyGroup>
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackFolder)" />
     </Target>
