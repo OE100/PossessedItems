@@ -1,0 +1,14 @@
+﻿using HarmonyLib;
+
+namespace PossessedItems.patches;
+
+[HarmonyPatch(typeof(RoundManager))]
+public class RoundManagerPatch
+{
+    [HarmonyPatch(nameof(RoundManager.FinishGeneratingLevel)), HarmonyPostfix]
+    private static void FinishGeneratingLevelPostfix(RoundManager __instance)
+    {
+        Utils.InsideAINodes = __instance.insideAINodes.ToList();
+        Utils.OutsideAINodes = __instance.outsideAINodes.ToList();
+    }
+}

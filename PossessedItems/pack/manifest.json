@@ -1,0 +1,9 @@
+{
+    "name": "Possessed_Items",
+    "version_number": "0.0.0",
+    "website_url": "https://github.com/OE100/Possessed_Items",
+    "description": "Adds some new behaviours that make items/scrap more interesting.",
+    "dependencies": [
+	"Evaisa-LethalLib-0.14.1"
+    ]
+}

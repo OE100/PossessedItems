@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <DebugSymbols>true</DebugSymbols>
+      <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.1">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+      <PackageReference Include="Evaisa.LethalLib" Version="0.14.1" />
+      <PackageReference Include="Evaisa.NetcodePatcher.MSBuild" Version="3.3.4" >
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="LethalCompany.GameLibs.Steam" Version="49.0.0-alpha.1" />
+    </ItemGroup>
+    <ItemGroup>
+        <NetcodePatch Include="$(TargetPath)" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <None Remove="assets\possessedmasks" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Folder Include="assets\" />
+      <Folder Include="mono\" />
+    </ItemGroup>
+
+    <Target Name="CopyToPack" DependsOnTargets="NetcodePatch" AfterTargets="PostBuildEvent">
+        <PropertyGroup>
+            <PackFolder>$(SolutionDir)PossessedMasks/pack</PackFolder>
+        </PropertyGroup>
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackFolder)" />
+    </Target>
+</Project>
