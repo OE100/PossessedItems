@@ -37,17 +37,17 @@ public class PossessedItemsBehaviour : NetworkBehaviour
     }
     
     [ServerRpc]
-    public void SetObjStateServerRpc(NetworkObjectReference objRef, bool state)
+    public void SetGrabbableStateServerRpc(NetworkObjectReference objRef, bool state)
     {
-        SetObjStateClientRpc(objRef, state);
+        SetGrabbableStateClientRpc(objRef, state);
     }
 
     [ClientRpc]
-    private void SetObjStateClientRpc(NetworkObjectReference objRef, bool state)
+    private void SetGrabbableStateClientRpc(NetworkObjectReference objRef, bool state)
     {
         if (!objRef.TryGet(out var networkObject)) return;
-        var obj = networkObject.gameObject.GetComponent<GrabbableObject>();
-        obj.enabled = state;
+        if (networkObject.gameObject.TryGetComponent<GrabbableObject>(out var obj))
+            obj.enabled = state;
     }
 
     [ServerRpc]

@@ -144,7 +144,7 @@ public class MaskStateManager : MonoBehaviour
         if (!data.Mask.hasHitGround) return State.Initial;
 
         data.Active = false;
-        PossessedItemsBehaviour.Instance.SetObjStateServerRpc(data.Mask.NetworkObject, false);
+        PossessedItemsBehaviour.Instance.SetGrabbableStateServerRpc(data.Mask.NetworkObject, false);
         data.Inside = data.Mask.previousPlayerHeldBy.isInsideFactory;
         Plugin.Log.LogDebug($"Found navmesh hit: {NavMesh.SamplePosition(data.Mask.transform.position, out data.Hit, float.MaxValue, NavMesh.AllAreas)}");
         data.Agent.speed = data.DemoAgent.speed * 2f;
@@ -154,7 +154,6 @@ public class MaskStateManager : MonoBehaviour
         data.AINode = null;
         data.Mesh.Translate(Vector3.up * 2);
         PossessedItemsBehaviour.Instance.SyncLocationServerRpc(data.Mask.NetworkObject, data.Hit.position, data.Mask.transform.rotation);
-        // todo: add renderer offset sync
         
         return State.ChooseNode;
     }
@@ -164,7 +163,7 @@ public class MaskStateManager : MonoBehaviour
         data.Agent.speed = data.DemoAgent.speed * 2.5f;
         var position = data.Mask.transform.position;
         
-        var sorted = (data.Inside ? Utils.InsideAINodes : Utils.OutsideAINodes)
+        var sorted = (data.Inside ? MachineUtils.InsideAINodes : MachineUtils.OutsideAINodes)
             .OrderByDescending(node => Vector3.Distance(position, node.transform.position)).ToList();
 
         data.Path = new NavMeshPath();
@@ -220,8 +219,6 @@ public class MaskStateManager : MonoBehaviour
         for (var i = 0; !found && i < sorted.Count; i++)
         {
             if (!data.Agent.CalculatePath(sorted[i].transform.position, data.Path)) continue;
-            // if (!Utils.PathNotVisibleByPlayer(data.Path)) continue;
-            // todo: find a better way of making a path not visible by player
             data.TargetPlayer = sorted[i];
             found = true;
             PossessedItemsBehaviour.Instance.SetEyesFilledServerRpc(data.Mask.NetworkObject, true);

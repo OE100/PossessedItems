@@ -19,21 +19,15 @@ public static class Utils
     public static bool InLevel =>
         StartOfRound.Instance && !StartOfRound.Instance.inShipPhase && StartOfRound.Instance.currentLevelID != 3;
 
-    public static List<GameObject> InsideAINodes;
-    public static List<GameObject> OutsideAINodes;
-
     private static void RegisterAllItems()
     {
         StartOfRound.Instance.allItemsList.itemsList.ForEach(item =>
         {
             var prefab = item.spawnPrefab;
-            if (prefab.TryGetComponent(out Transform transform))
+            if (!prefab.TryGetComponent(out NetworkTransform networkTransform))
             {
                 // add network transform to prefab
                 prefab.AddComponent<NetworkTransform>();
-
-                // destroy original transform
-                Object.Destroy(transform);
             }
         });
     }
@@ -64,9 +58,8 @@ public static class Utils
         
         Plugin.Log.LogMessage("Registering all!");
         
-        RegisterAllItems();
-        
         RegisterEnemies();
+        RegisterAllItems();
     }
 
     public static void PlayRandomAudioClipFromList(AudioSource source, List<AudioClip> clips, float volumeScale = 1f)
@@ -89,46 +82,6 @@ public static class Utils
             where IsActivePlayer(player)
             select player;
         return query.ToList();
-    }
-    
-    public static (bool, T) FindFarthestAwayThingFromPosition<T>(Vector3 position, 
-        List<T> things, Func<T, Vector3> getThingPosition)
-    {
-        if (!things.Any()) return (false, default);
-        T farthestAwayThing = default;
-        var farthestAwayThingDistance = Mathf.NegativeInfinity;
-        var found = false;
-
-        things.ForEach(thing =>
-        {
-            var distance = Vector3.Distance(position, getThingPosition(thing));
-            if (!(distance > farthestAwayThingDistance)) return;
-            farthestAwayThingDistance = distance;
-            farthestAwayThing = thing;
-            found = true;
-        });
-        
-        return (found, farthestAwayThing);
-    }
-    
-    public static (bool, T) FindClosestThingToPosition<T>(Vector3 position, 
-        List<T> things, Func<T, Vector3> getThingPosition)
-    {
-        if (!things.Any()) return (false, default);
-        T closestThing = default;
-        var closestThingDistance = Mathf.Infinity;
-        var found = false;
-
-        things.ForEach(thing =>
-        {
-            var distance = Vector3.Distance(position, getThingPosition(thing));
-            if (!(distance < closestThingDistance)) return;
-            closestThingDistance = distance;
-            closestThing = thing;
-            found = true;
-        });
-        
-        return (found, closestThing);
     }
 
     public static bool PathNotVisibleByPlayer(NavMeshPath path)

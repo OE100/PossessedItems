@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using PossessedItems.machines.impl.general;
 
 namespace PossessedItems.patches;
 
@@ -11,5 +12,6 @@ public class GrabbableObjectPatch
         if (!Utils.HostCheck) return;
         
         // todo: randomize item behaviour component
+        __instance.gameObject.AddComponent<StingAndRun>();
     }
 }
