@@ -38,10 +38,14 @@ public static class Utils
         EnemyPrefabRegistry.TryAdd(enemyAI, prefab);
     }
 
-    private static void RegisterEnemies()
+    private static void RegisterOnAllLevels()
     {
         foreach (var level in Terminal.moonsCatalogueList)
         {
+            // add network transform to all level items
+            foreach (var prefab in level.spawnableScrap.Select(spawnable => spawnable.spawnableItem.spawnPrefab))
+                if (!prefab.TryGetComponent(out NetworkTransform networkTransform)) prefab.AddComponent<NetworkTransform>();
+
             // register enemy prefabs to dictionary
             level.Enemies.ForEach(spawnable =>
             {
@@ -58,7 +62,7 @@ public static class Utils
         
         Plugin.Log.LogMessage("Registering all!");
         
-        RegisterEnemies();
+        RegisterOnAllLevels();
         RegisterAllItems();
     }
 
