@@ -22,7 +22,7 @@ public sealed class FiniteStateMachine<TState, TData>(TData data, TState initial
 
     private void Reset()
     {
-        SwitchStates(default);
+        SwitchStates(initialState);
     }
     
     public void Tick()
