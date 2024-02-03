@@ -1,4 +1,5 @@
-﻿using GameNetcodeStuff;
+﻿using System.Collections;
+using GameNetcodeStuff;
 using PossessedItems.machines.def;
 using PossessedItems.networking;
 using UnityEngine;
@@ -12,6 +13,7 @@ public class StingAndRun : MonoBehaviour
     {
         // original object data
         public GrabbableObject Grabbable;
+        public ScanNodeProperties ScanNode;
         public Quaternion OriginalRotation { get; set; }
         
         // ai components
@@ -19,11 +21,17 @@ public class StingAndRun : MonoBehaviour
         public NavMeshPath Path;
         public readonly NavMeshAgent DemoAgent = Utils.EnemyPrefabRegistry[typeof(CentipedeAI)].GetComponent<NavMeshAgent>();
         public bool Inside = true;
+
+        // targeting
         public GameObject TargetAINode { get; set; }
         public PlayerControllerB TargetPlayer { get; set; }
-        
         public float TimeUntilRetarget = 0f;
-        public const float RetargetTime = 0.5f;
+        public readonly float RetargetTime = 0.5f;
+
+        // unstuck
+        public Vector3 LastPosition { get; set; } = Vector3.zero;
+        public float TimeUntilUnstuck = 0f;
+        public readonly float UnstuckTime = 5f;
     }
     
     private enum State
@@ -33,7 +41,7 @@ public class StingAndRun : MonoBehaviour
         GoToNode,
         ChooseTarget,
         GoToTarget,
-        SneakAttack,
+        Attack,
         Wait
     }
 
@@ -57,47 +65,94 @@ public class StingAndRun : MonoBehaviour
     {
         // get the original object rotation
         _data.OriginalRotation = transform.rotation;
-        
+
         // get the original object script
         if (!TryGetComponent(out _data.Grabbable)) DestroyImmediate(this);
-        
+
+        // get the original object scan node
+        _data.ScanNode = GetComponentInParent<ScanNodeProperties>();
+
         // create a new NavMeshAgent
         if (!TryGetComponent(out _data.Agent)) (_data.Agent = gameObject.AddComponent<NavMeshAgent>()).enabled = false;
-        
+
         SetAgentDefaults();
     }
 
     private void SetAgentDefaults()
     {
+        var collider = _data.Grabbable.GetComponent<Collider>();
         _data.Agent.agentTypeID = _data.DemoAgent.agentTypeID;
-        _data.Agent.baseOffset = _data.DemoAgent.baseOffset;
-        _data.Agent.acceleration = _data.DemoAgent.acceleration / 2;
-        _data.Agent.angularSpeed = _data.DemoAgent.angularSpeed / 2;
-        _data.Agent.stoppingDistance = _data.DemoAgent.stoppingDistance / 2;
+        _data.Agent.baseOffset = collider ? collider.bounds.size.y : 0;
+        _data.Agent.acceleration = _data.DemoAgent.acceleration;
+        _data.Agent.angularSpeed = _data.DemoAgent.angularSpeed;
+        _data.Agent.stoppingDistance = _data.DemoAgent.stoppingDistance;
         _data.Agent.autoBraking = _data.DemoAgent.autoBraking;
-        _data.Agent.radius = _data.DemoAgent.radius / 2;
-        _data.Agent.height = _data.DemoAgent.height / 2;
+        _data.Agent.radius = collider ? Mathf.Max(collider.bounds.size.x, collider.bounds.size.z) * 2 : 0;
+        _data.Agent.height = collider ? collider.bounds.size.y * 2 : 0;
         _data.Agent.obstacleAvoidanceType = _data.DemoAgent.obstacleAvoidanceType;
         _data.Agent.avoidancePriority = _data.DemoAgent.avoidancePriority;
         _data.Agent.autoTraverseOffMeshLink = _data.DemoAgent.autoTraverseOffMeshLink;
-        _data.Agent.autoRepath = _data.DemoAgent.autoRepath;
-        _data.Agent.areaMask = _data.DemoAgent.areaMask;
+        _data.Agent.autoRepath = false;
+        _data.Agent.areaMask = NavMesh.AllAreas;
     }
 
     private void AssignFunctions()
     {
-        _finiteStateMachine.AddPreTickAction(PreTick);
+        _finiteStateMachine.AddPreTickAction(PreTickStateCheck);
+        _finiteStateMachine.AddPreTickAction(PreTickObstacleCheck);
+
         _finiteStateMachine.AddAction(State.Initial, Initial);
         _finiteStateMachine.AddAction(State.ChooseNode, ChooseNode);
         _finiteStateMachine.AddAction(State.GoToNode, GoToNode);
         _finiteStateMachine.AddAction(State.ChooseTarget, ChooseTarget);
         _finiteStateMachine.AddAction(State.GoToTarget, GoToTarget);
-        _finiteStateMachine.AddAction(State.SneakAttack, SneakAttack);
+        _finiteStateMachine.AddAction(State.Attack, Attack);
         _finiteStateMachine.AddAction(State.Wait, Wait);
     }
 
-    private void PreTick(State previousState, State currentState, Data data)
+    private void PreTickObstacleCheck(State previousState, State currentState, Data data)
     {
+        // if the agent is enabled
+        if (data.TimeUntilUnstuck <= 0f && currentState is State.GoToNode or State.GoToTarget or State.Attack && data.Agent.enabled)
+        {
+            data.TimeUntilUnstuck = data.UnstuckTime; 
+            // if the agent is stuck teleport it to a navmesh around itself
+            if (Vector3.Distance(data.Agent.transform.position, data.LastPosition) < 0.5f)
+            {
+                if (NavMesh.SamplePosition(data.LastPosition + data.Agent.transform.forward * 5, out var navMeshHit, 4,
+                        NavMesh.AllAreas))
+                {
+                    data.Agent.Warp(navMeshHit.position);
+                    switch (currentState)
+                    {
+                        case State.GoToNode:
+                            _finiteStateMachine.SwitchStates(State.ChooseNode);
+                            break;
+                        
+                        case State.GoToTarget:
+                            _finiteStateMachine.SwitchStates(State.ChooseTarget);
+                            break;
+                        
+                        case State.Attack:
+                            _data.TimeUntilRetarget = 0f;
+                            break;
+                    }
+                }
+            }
+                
+            // if the agent is close to an obstacle open the door
+            if (Physics.Raycast(data.Agent.transform.position, data.Agent.transform.forward, out var raycastHit, 5f) && raycastHit.transform.gameObject.TryGetComponent<NavMeshObstacle>(out var obstacle))
+                PossessedItemsBehaviour.Instance.StartCoroutine(DoorHandler(obstacle));
+            
+            data.LastPosition = data.Agent.transform.position;
+        }
+        
+        data.TimeUntilUnstuck -= Time.deltaTime;
+    }
+    
+    private void PreTickStateCheck(State previousState, State currentState, Data data)
+    {
+        // if the object is held by a player switch to wait state
         if (!currentState.Equals(State.Wait) && data.Grabbable.playerHeldBy)
             _finiteStateMachine.SwitchStates(State.Wait);
         
@@ -111,15 +166,19 @@ public class StingAndRun : MonoBehaviour
     
     private static State Initial(State previousState, Data data)
     {
+        // check if was held by player
+        if (data.Grabbable.playerHeldBy) data.Inside = data.Grabbable.playerHeldBy.isInsideFactory;
         // find the closest valid NavMesh to lock unto
-        if (!NavMesh.SamplePosition(data.Grabbable.transform.position, out var hit, 10f, NavMesh.AllAreas))
+        if (!NavMesh.SamplePosition(data.Agent.transform.position, out var hit, 10f, NavMesh.AllAreas))
             return State.Wait;
         
         PossessedItemsBehaviour.Instance.SetGrabbableStateServerRpc(data.Grabbable.NetworkObject, false);
-
-        data.Agent.Warp(hit.position);
         
         data.Agent.enabled = true;
+        
+        data.Agent.Warp(hit.position);
+        
+        data.LastPosition = data.Agent.transform.position;
         
         return State.ChooseNode;
     }
@@ -142,25 +201,26 @@ public class StingAndRun : MonoBehaviour
     {
         if (!previousState.Equals(State.GoToNode))
         {
-            data.Agent.speed = data.DemoAgent.speed / 4;
+            data.Agent.speed = data.DemoAgent.speed;
             NavMesh.SamplePosition(data.TargetAINode.transform.position, out var hit, float.MaxValue, NavMesh.AllAreas);
             data.Agent.CalculatePath(hit.position, data.Path = new NavMeshPath());
+            data.Agent.SetPath(data.Path);
         }
-        else if (Vector3.Distance(data.Path.corners[^1], data.Grabbable.transform.position) < 10f)
+        else if (Vector3.Distance(data.Path.corners[^1], data.Agent.transform.position) < 10f)
             return State.ChooseTarget;
 
-        return State.ChooseTarget;
+        return State.GoToNode;
     }
     
     private static State ChooseTarget(State previousState, Data data)
     {
         if (!previousState.Equals(State.ChooseTarget))
-            data.Agent.speed = data.DemoAgent.speed / 4;
+            data.Agent.speed = data.DemoAgent.speed;
         
         var players = Utils.GetActivePlayers(data.Inside);
         if (players.Count == 0) return State.ChooseNode;
         players = players
-            .OrderByDescending(player => -1 * Vector3.Distance(player.transform.position, data.Grabbable.transform.position))
+            .OrderByDescending(player => -1 * Vector3.Distance(player.transform.position, data.Agent.transform.position))
             .ToList();
         
         foreach (var player in players)
@@ -177,11 +237,11 @@ public class StingAndRun : MonoBehaviour
     
     private static State GoToTarget(State previousState, Data data)
     {
-        var position = data.Grabbable.transform.position;
+        var position = data.Agent.transform.position;
         
         // if close enough to player go to sneak attack
         if (Vector3.Distance(position, data.TargetPlayer.transform.position) < 30f)
-            return State.SneakAttack;
+            return State.Attack;
         
         // else if reached end of the path recalculate path
         if (Vector3.Distance(position, data.Path.corners[^1]) < 10f)
@@ -191,10 +251,10 @@ public class StingAndRun : MonoBehaviour
         return State.GoToTarget;
     }
     
-    private static State SneakAttack(State previousState, Data data)
+    private static State Attack(State previousState, Data data)
     {
-        if (!previousState.Equals(State.SneakAttack))
-            data.Agent.speed = data.DemoAgent.speed * 1.5f;
+        if (!previousState.Equals(State.Attack))
+            data.Agent.speed = data.DemoAgent.speed;
 
         var pp = data.TargetPlayer.transform.position;
 
@@ -210,10 +270,10 @@ public class StingAndRun : MonoBehaviour
         {
             data.Agent.CalculatePath(pp, data.Path = new NavMeshPath());
             data.Agent.SetPath(data.Path);
-            data.TimeUntilRetarget = Data.RetargetTime;
+            data.TimeUntilRetarget = data.RetargetTime;
         }
 
-        return State.SneakAttack;
+        return State.Attack;
     }
     
     private static State Wait(State previousState, Data data)
@@ -235,5 +295,13 @@ public class StingAndRun : MonoBehaviour
                 PossessedItemsBehaviour.Instance.SetGrabbableStateServerRpc(data.Grabbable.NetworkObject, true);
                 return State.Wait;
         }
+    }
+
+    private static IEnumerator DoorHandler(NavMeshObstacle obstacle)
+    {
+        if (!obstacle.enabled) yield break;
+        obstacle.enabled = false;
+        yield return new WaitForSeconds(1f);
+        obstacle.enabled = true;
     }
 }
