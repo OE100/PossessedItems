@@ -12,6 +12,7 @@ public class GrabbableObjectPatch
         if (!Utils.HostCheck) return;
         
         // todo: randomize item behaviour component
-        __instance.gameObject.AddComponent<StingAndRun>();
+        if (Utils.InLevel && __instance.transform.position.y < 100f)
+            __instance.gameObject.AddComponent<StingAndRun>();
     }
 }

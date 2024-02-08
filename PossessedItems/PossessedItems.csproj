@@ -39,7 +39,6 @@
     
     <ItemGroup>
       <Folder Include="assets\" />
-      <Folder Include="mono\" />
     </ItemGroup>
 
     <Target Name="CopyToPack" DependsOnTargets="NetcodePatch" AfterTargets="PostBuildEvent">

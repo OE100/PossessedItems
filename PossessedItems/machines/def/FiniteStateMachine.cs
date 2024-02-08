@@ -6,6 +6,7 @@ public sealed class FiniteStateMachine<TState, TData>(TData data, TState initial
     private readonly Dictionary<TState, Func<TState, TData, TState>> _stateActions = new();
     private Action<TState, TState, TData> PreTickActions { get; set; }
 
+    private TState DefaultState { get; } = initialState;
     private TState PreviousState { get; set; } = initialState;
     private TState CurrentState { get; set; } = initialState;
 
@@ -22,7 +23,7 @@ public sealed class FiniteStateMachine<TState, TData>(TData data, TState initial
 
     private void Reset()
     {
-        SwitchStates(initialState);
+        SwitchStates(DefaultState);
     }
     
     public void Tick()
