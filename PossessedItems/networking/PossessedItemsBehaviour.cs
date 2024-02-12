@@ -12,28 +12,19 @@ public class PossessedItemsBehaviour : NetworkBehaviour
     {
         base.OnNetworkSpawn();
         Instance = this;
+        StartCoroutine(LoadConfigItemList());
+    }
+
+    private static IEnumerator LoadConfigItemList()
+    {
+        yield return new WaitUntil(() => ModConfig.Loaded);
+        Utils.ItemNamesList = ModConfig.ItemList.Value.Split(",").Select(str => str.Trim()).ToList();
     }
 
     public override void OnNetworkDespawn()
     {
         base.OnNetworkDespawn();
         Instance = null;
-    }
-
-    [ServerRpc]
-    public void SyncLocationServerRpc(NetworkObjectReference maskRef, Vector3 position, Quaternion rotation)
-    {
-        SyncLocationClientRpc(maskRef, position, rotation);
-    }
-
-    [ClientRpc]
-    private void SyncLocationClientRpc(NetworkObjectReference maskRef, Vector3 position, Quaternion rotation)
-    {
-        if (Utils.HostCheck) return;
-        if (!maskRef.TryGet(out var networkObject)) return;
-        var obj = networkObject.gameObject;
-        obj.transform.position = position;
-        obj.transform.rotation = rotation;
     }
     
     [ServerRpc]
@@ -48,42 +39,5 @@ public class PossessedItemsBehaviour : NetworkBehaviour
         if (!objRef.TryGet(out var networkObject)) return;
         if (networkObject.gameObject.TryGetComponent<GrabbableObject>(out var obj))
             obj.enabled = state;
-    }
-
-    [ServerRpc]
-    public void SetEyesFilledServerRpc(NetworkObjectReference maskRef, bool state)
-    {
-        SetEyesFilledClientRpc(maskRef, state);
-    }
-
-    [ClientRpc]
-    private void SetEyesFilledClientRpc(NetworkObjectReference maskRef, bool state)
-    {
-        if (!maskRef.TryGet(out var networkObject)) return;
-        var obj = networkObject.gameObject.GetComponent<GrabbableObject>();
-        if (obj is HauntedMaskItem mask)
-        {
-            mask.maskEyesFilled.enabled = state;
-        }
-    }
-
-    [ServerRpc]
-    public void AttachServerRpc(NetworkObjectReference maskRef)
-    {
-        AttachClientRpc(maskRef);
-    }
-
-    [ClientRpc]
-    private void AttachClientRpc(NetworkObjectReference maskRef)
-    {
-        if (!maskRef.TryGet(out var networkObject)) return;
-        var mask = networkObject.gameObject.GetComponent<HauntedMaskItem>();
-        StartCoroutine(DelayedAttach(mask));
-    }
-
-    private static IEnumerator DelayedAttach(HauntedMaskItem mask)
-    {
-        yield return new WaitForEndOfFrame();
-        mask.BeginAttachment();
     }
 }

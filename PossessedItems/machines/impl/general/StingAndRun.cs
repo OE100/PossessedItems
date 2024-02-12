@@ -26,12 +26,14 @@ public class StingAndRun : MonoBehaviour
         public GameObject TargetAINode { get; set; }
         public PlayerControllerB TargetPlayer { get; set; }
         public float TimeUntilRetarget = 0f;
-        public readonly float RetargetTime = 0.5f;
+        public const float RetargetTime = 0.5f;
+        public int AttackDamage;
+        public int DamageRemaining = ModConfig.MaxDamageOverall.Value;
 
         // unstuck
         public Vector3 LastPosition { get; set; } = Vector3.zero;
         public float TimeUntilUnstuck = 0f;
-        public readonly float UnstuckTime = 5f;
+        public const float UnstuckTime = 5f;
     }
     
     private enum State
@@ -75,6 +77,12 @@ public class StingAndRun : MonoBehaviour
         // create a new NavMeshAgent
         if (!TryGetComponent(out _data.Agent)) (_data.Agent = gameObject.AddComponent<NavMeshAgent>()).enabled = false;
 
+        // calculate damage per hit
+        _data.AttackDamage = Math.Clamp(
+            Mathf.RoundToInt(ModConfig.BaseDamageOfItems.Value + ModConfig.UnitsOfWeightPerDamage.Value *
+                (_data.Grabbable.itemProperties.weight - 1f) * 100), 
+            ModConfig.BaseDamageOfItems.Value, ModConfig.MaxDamagePerHit.Value);
+        
         SetAgentDefaults();
     }
 
@@ -115,7 +123,7 @@ public class StingAndRun : MonoBehaviour
         // if the agent is enabled
         if (data.TimeUntilUnstuck <= 0f && currentState is State.GoToNode or State.GoToTarget or State.Attack && data.Agent.enabled)
         {
-            data.TimeUntilUnstuck = data.UnstuckTime; 
+            data.TimeUntilUnstuck = Data.UnstuckTime; 
             // if the agent is stuck teleport it to a navmesh around itself
             if (Vector3.Distance(data.Agent.transform.position, data.LastPosition) < 0.5f)
             {
@@ -197,7 +205,7 @@ public class StingAndRun : MonoBehaviour
         return data.TargetAINode ? State.GoToNode : State.ChooseNode;
     }
     
-    private static State GoToNode(State previousState, Data data)
+    private State GoToNode(State previousState, Data data)
     {
         if (!previousState.Equals(State.GoToNode))
         {
@@ -206,6 +214,7 @@ public class StingAndRun : MonoBehaviour
             data.Agent.CalculatePath(hit.position, data.Path = new NavMeshPath());
             data.Agent.SetPath(data.Path);
         }
+        else if (data.DamageRemaining <= 0) BackToItem(true);
         else if (Vector3.Distance(data.Path.corners[^1], data.Agent.transform.position) < 10f)
             return State.ChooseTarget;
 
@@ -260,7 +269,8 @@ public class StingAndRun : MonoBehaviour
 
         if (Vector3.Distance(pp, data.Agent.transform.position) < 2f)
         {
-            data.TargetPlayer.DamagePlayer(5);
+            data.TargetPlayer.DamagePlayer(Math.Min(data.AttackDamage, data.DamageRemaining));
+            data.DamageRemaining -= data.AttackDamage;
             return State.ChooseNode;
         }
         
@@ -270,13 +280,13 @@ public class StingAndRun : MonoBehaviour
         {
             data.Agent.CalculatePath(pp, data.Path = new NavMeshPath());
             data.Agent.SetPath(data.Path);
-            data.TimeUntilRetarget = data.RetargetTime;
+            data.TimeUntilRetarget = Data.RetargetTime;
         }
 
         return State.Attack;
     }
     
-    private static State Wait(State previousState, Data data)
+    private State Wait(State previousState, Data data)
     {
         switch (previousState)
         {
@@ -290,9 +300,7 @@ public class StingAndRun : MonoBehaviour
             
             // else if not held by player restart the state machine
             default:
-                data.Agent.enabled = false;
-                data.Grabbable.transform.rotation = data.OriginalRotation;
-                PossessedItemsBehaviour.Instance.SetGrabbableStateServerRpc(data.Grabbable.NetworkObject, true);
+                BackToItem();
                 return State.Wait;
         }
     }
@@ -303,5 +311,16 @@ public class StingAndRun : MonoBehaviour
         obstacle.enabled = false;
         yield return new WaitForSeconds(1f);
         obstacle.enabled = true;
+    }
+
+    private void BackToItem(bool destroy = false)
+    {
+        _data.Agent.enabled = false;
+        _data.Grabbable.transform.rotation = _data.OriginalRotation;
+        PossessedItemsBehaviour.Instance.SetGrabbableStateServerRpc(_data.Grabbable.NetworkObject, true);
+
+        if (!destroy) return;
+        DestroyImmediate(this);
+        DestroyImmediate(_data.Agent);
     }
 }

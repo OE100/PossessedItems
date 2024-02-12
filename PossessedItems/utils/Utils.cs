@@ -19,6 +19,8 @@ public static class Utils
     public static bool InLevel =>
         StartOfRound.Instance && !StartOfRound.Instance.inShipPhase && StartOfRound.Instance.currentLevelID != 3;
 
+    public static List<string> ItemNamesList = null;
+
     private static void RegisterAllItems()
     {
         StartOfRound.Instance.allItemsList.itemsList.ForEach(item =>

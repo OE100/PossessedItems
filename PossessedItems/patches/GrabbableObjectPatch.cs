@@ -11,8 +11,13 @@ public class GrabbableObjectPatch
     {
         if (!Utils.HostCheck) return;
         
-        // todo: randomize item behaviour component
-        if (Utils.InLevel && __instance.transform.position.y < 100f)
+        if (UnityEngine.Random.Range(0, 100) >= ModConfig.PossessionProbability.Value) return;
+        if (Utils.InLevel && 
+            !__instance.isInShipRoom && 
+            __instance.transform.position.y < 100f &&
+            !Utils.ItemNamesList.Any(name => __instance.itemProperties.itemName.Contains(name)))
+        {
             __instance.gameObject.AddComponent<StingAndRun>();
+        }
     }
 }
